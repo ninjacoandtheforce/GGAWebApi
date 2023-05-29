@@ -8,39 +8,50 @@ using Microsoft.EntityFrameworkCore;
 using GGAWebApi.Entities;
 using GGAWebApi.Models;
 using System.Net;
+using Microsoft.Graph;
+using Microsoft.Identity.Web.Resource;
+using Microsoft.AspNetCore.Authorization;
 
 namespace GGAWebApi.Controllers
 {
+    [Authorize]
     [Route("api/[controller]")]
     [ApiController]
+    [RequiredScope(RequiredScopesConfigurationKey = "AzureAd:Scopes")]
     public class ProductsController : ControllerBase
     {
         private readonly GamesGlobalContext _context;
         public static IWebHostEnvironment _webHostEnvironment;
+        private readonly GraphServiceClient _graphServiceClient;
 
-        public ProductsController(GamesGlobalContext context, IWebHostEnvironment webHostEnvironment)
+        public ProductsController(GamesGlobalContext context, IWebHostEnvironment webHostEnvironment, GraphServiceClient graphServiceClient)
         {
             _context = context;
             _webHostEnvironment = webHostEnvironment;
+            _graphServiceClient = graphServiceClient;
         }
 
         // GET: api/Products
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
         {
-          if (_context.Products == null)
-          {
-              return NotFound();
-          }
-            return await _context.Products.ToListAsync();
+            // get loggedIn User
+            var user = await _graphServiceClient.Me.Request().GetAsync();
+            var username = user.UserPrincipalName;
+
+            
+            var products = await _context.Products.ToListAsync();
+            if (products == null)
+            {
+                return NotFound();
+            }
+            return products.Where(p => p.Username == username).ToList();
         }
 
         // GET: api/Products/5
         [HttpGet("{id}")]
         public async Task<ActionResult<ProductUploadModel>> GetProduct(int id)
         {
-            //todo: get products by user
-
             if (_context.Products == null)
             {
                   return NotFound();
@@ -110,12 +121,15 @@ namespace GGAWebApi.Controllers
             try
             {
                 // get loggedIn User
+                var user = await _graphServiceClient.Me.Request().GetAsync();
+                var username = user.UserPrincipalName;
+                //var username = "jaco@acoh.org.za";
 
                 //upload ProductImage
                 if (product.ProductImage.Length > 0)
                 {
                     string path = _webHostEnvironment.WebRootPath + "\\uploads\\";
-                    if(!Directory.Exists(path)) { Directory.CreateDirectory(path); }
+                    if(!System.IO.Directory.Exists(path)) { System.IO.Directory.CreateDirectory(path); }
                     using(FileStream fileStream = System.IO.File.Create(path + product.ProductImage.FileName))
                     {
                         product.ProductImage.CopyTo(fileStream);
@@ -130,7 +144,7 @@ namespace GGAWebApi.Controllers
                     ProductName = product.ProductName,
                     ProductPrice = product.ProductPrice,
                     ProductUrl = product.ProductImage.FileName,
-                    //Username = 
+                    Username = username
                 });
                 await _context.SaveChangesAsync();
 
