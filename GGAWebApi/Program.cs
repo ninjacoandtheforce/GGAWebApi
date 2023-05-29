@@ -36,6 +36,34 @@ builder.Services.AddSwaggerGen(options =>
             Url = new Uri("https://example.com/license")
         }
     });
+    options.AddSecurityDefinition("OAuth2", new OpenApiSecurityScheme
+    {
+        Description = "OAuth2.0 using AuthorizationCode Flow",
+        Name = "OAuth2.0",
+        Type = SecuritySchemeType.OAuth2,
+        Flows = new OpenApiOAuthFlows
+        {
+            AuthorizationCode = new OpenApiOAuthFlow
+            {
+                AuthorizationUrl = new Uri(builder.Configuration["SwaggerAzureAD:AuthorizationUrl"]),
+                TokenUrl = new Uri(builder.Configuration["SwaggerAzureAD:TokenUrl"]),
+                Scopes = new Dictionary<string, string>
+                {
+                    { builder.Configuration["SwaggerAzureAD:Scope"], "Access API as User" }
+                }
+            }
+        }
+    });
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "OAuth2" }
+            },
+            new[]{ builder.Configuration["SwaggerAzureAD:Scope"] }
+        }
+    });
 });
 //dbcontext
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -47,7 +75,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.OAuthClientId(builder.Configuration["SwaggerAzureAD:ClientId"]);
+        options.OAuthUsePkce();
+    });
 }
 
 app.UseHttpsRedirection();
