@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GGAWebApi.Entities;
+using GGAWebApi.Models;
+using System.Net;
 
 namespace GGAWebApi.Controllers
 {
@@ -14,10 +16,12 @@ namespace GGAWebApi.Controllers
     public class ProductsController : ControllerBase
     {
         private readonly GamesGlobalContext _context;
+        public static IWebHostEnvironment _webHostEnvironment;
 
-        public ProductsController(GamesGlobalContext context)
+        public ProductsController(GamesGlobalContext context, IWebHostEnvironment webHostEnvironment)
         {
             _context = context;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         // GET: api/Products
@@ -33,20 +37,38 @@ namespace GGAWebApi.Controllers
 
         // GET: api/Products/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Product>> GetProduct(int id)
+        public async Task<ActionResult<ProductUploadModel>> GetProduct(int id)
         {
-          if (_context.Products == null)
-          {
-              return NotFound();
-          }
+            //todo: get products by user
+
+            if (_context.Products == null)
+            {
+                  return NotFound();
+            }
             var product = await _context.Products.FindAsync(id);
 
             if (product == null)
             {
                 return NotFound();
             }
+            var model = new ProductUploadModel
+            {
+                Id = product.Id,
+                ProductName = product.ProductName,
+                ProductDescription = product.ProductDescription,
+                ProductPrice = product.ProductPrice,
+            };
 
-            return product;
+            //add image to result
+            string path = _webHostEnvironment.WebRootPath + "\\uploads\\";
+            var filePath = path + product.ProductUrl;
+            if(System.IO.File.Exists(filePath))
+            {
+                byte[] b = System.IO.File.ReadAllBytes(filePath);
+                model.ProductImage = (IFormFile)File(b, "image/png");
+            }
+
+            return model;
         }
 
         // PUT: api/Products/5
@@ -83,16 +105,41 @@ namespace GGAWebApi.Controllers
         // POST: api/Products
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Product>> PostProduct(Product product)
+        public async Task<ActionResult<Product>> PostProduct([FromForm] ProductUploadModel product)
         {
-          if (_context.Products == null)
-          {
-              return Problem("Entity set 'GamesGlobalContext.Products'  is null.");
-          }
-            _context.Products.Add(product);
-            await _context.SaveChangesAsync();
+            try
+            {
+                // get loggedIn User
 
-            return CreatedAtAction("GetProduct", new { id = product.Id }, product);
+                //upload ProductImage
+                if (product.ProductImage.Length > 0)
+                {
+                    string path = _webHostEnvironment.WebRootPath + "\\uploads\\";
+                    if(!Directory.Exists(path)) { Directory.CreateDirectory(path); }
+                    using(FileStream fileStream = System.IO.File.Create(path + product.ProductImage.FileName))
+                    {
+                        product.ProductImage.CopyTo(fileStream);
+                        fileStream.Flush();
+                    }
+                }
+
+                //save to db
+                _context.Products.Add(new Product
+                {
+                    ProductDescription = product.ProductDescription,
+                    ProductName = product.ProductName,
+                    ProductPrice = product.ProductPrice,
+                    ProductUrl = product.ProductImage.FileName,
+                    //Username = 
+                });
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction("GetProduct", new { id = product.Id }, product);
+            }
+            catch (Exception ex)
+            {
+                throw;
+            }                        
         }
 
         // DELETE: api/Products/5

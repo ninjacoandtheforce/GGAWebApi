@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace GGAWebApi.Entities;
 
@@ -16,4 +17,5 @@ public partial class Product
     public string ProductUrl { get; set; }
 
     public string Username { get; set; }
+
 }
