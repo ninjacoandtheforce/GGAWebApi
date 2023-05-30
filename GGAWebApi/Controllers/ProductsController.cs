@@ -23,63 +23,83 @@ namespace GGAWebApi.Controllers
         private readonly GamesGlobalContext _context;
         public static IWebHostEnvironment _webHostEnvironment;
         private readonly GraphServiceClient _graphServiceClient;
+        private readonly ILogger<ProductsController> _logger;
 
-        public ProductsController(GamesGlobalContext context, IWebHostEnvironment webHostEnvironment, GraphServiceClient graphServiceClient)
+        public ProductsController(GamesGlobalContext context, IWebHostEnvironment webHostEnvironment, GraphServiceClient graphServiceClient, ILogger<ProductsController> logger)
         {
             _context = context;
             _webHostEnvironment = webHostEnvironment;
             _graphServiceClient = graphServiceClient;
+            _logger = logger;
         }
 
         // GET: api/Products
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Product>>> GetProducts()
         {
-            // get loggedIn User
-            var user = await _graphServiceClient.Me.Request().GetAsync();
-            var username = user.UserPrincipalName;
-
-            
-            var products = await _context.Products.ToListAsync();
-            if (products == null)
+            try
             {
-                return NotFound();
+                // get loggedIn User
+                var user = await _graphServiceClient.Me.Request().GetAsync();
+                var username = user.UserPrincipalName;
+
+
+                var products = await _context.Products.ToListAsync();
+                if (products == null)
+                {
+                    return NotFound();
+                }
+                return products.Where(p => p.Username == username).ToList();
             }
-            return products.Where(p => p.Username == username).ToList();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                return BadRequest(ex.Message);
+            }
+            
         }
 
         // GET: api/Products/5
         [HttpGet("{id}")]
         public async Task<ActionResult<ProductUploadModel>> GetProduct(int id)
         {
-            if (_context.Products == null)
+            try
             {
-                  return NotFound();
-            }
-            var product = await _context.Products.FindAsync(id);
+                if (_context.Products == null)
+                {
+                    return NotFound();
+                }
+                var product = await _context.Products.FindAsync(id);
 
-            if (product == null)
-            {
-                return NotFound();
-            }
-            var model = new ProductUploadModel
-            {
-                Id = product.Id,
-                ProductName = product.ProductName,
-                ProductDescription = product.ProductDescription,
-                ProductPrice = product.ProductPrice,
-            };
+                if (product == null)
+                {
+                    return NotFound();
+                }
+                var model = new ProductUploadModel
+                {
+                    Id = product.Id,
+                    ProductName = product.ProductName,
+                    ProductDescription = product.ProductDescription,
+                    ProductPrice = product.ProductPrice,
+                };
 
-            //add image to result
-            string path = _webHostEnvironment.WebRootPath + "\\uploads\\";
-            var filePath = path + product.ProductUrl;
-            if(System.IO.File.Exists(filePath))
-            {
-                byte[] b = System.IO.File.ReadAllBytes(filePath);
-                model.ProductImage = (IFormFile)File(b, "image/png");
-            }
+                //add image to result
+                var path = _webHostEnvironment.WebRootPath + "\\uploads\\";
+                var filePath = path + product.ProductUrl;
+                if (System.IO.File.Exists(filePath))
+                {
+                    byte[] b = System.IO.File.ReadAllBytes(filePath);
+                    model.ProductImage = (IFormFile)File(b, "image/png");
+                }
 
-            return model;
+                return model;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                return BadRequest(ex.Message);
+            }
+            
         }
 
         // PUT: api/Products/5
@@ -87,30 +107,39 @@ namespace GGAWebApi.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutProduct(int id, Product product)
         {
-            if (id != product.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(product).State = EntityState.Modified;
-
             try
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ProductExists(id))
+                if (id != product.Id)
                 {
-                    return NotFound();
+                    return BadRequest();
                 }
-                else
-                {
-                    throw;
-                }
-            }
 
-            return NoContent();
+                _context.Entry(product).State = EntityState.Modified;
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    if (!ProductExists(id))
+                    {
+                        return NotFound();
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                return BadRequest(ex.Message);
+            }
+            
         }
 
         // POST: api/Products
@@ -151,28 +180,34 @@ namespace GGAWebApi.Controllers
             }
             catch (Exception ex)
             {
-                throw;
-            }                        
+                _logger.LogError(ex.Message);
+                return BadRequest(ex.Message);
+            }
         }
 
         // DELETE: api/Products/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProduct(int id)
         {
-            if (_context.Products == null)
+            try
             {
-                return NotFound();
+                var product = await _context.Products.FindAsync(id);
+                if (product == null)
+                {
+                    return NotFound();
+                }
+
+                _context.Products.Remove(product);
+                await _context.SaveChangesAsync();
+
+                return NoContent();
             }
-            var product = await _context.Products.FindAsync(id);
-            if (product == null)
+            catch (Exception ex)
             {
-                return NotFound();
+                _logger.LogError(ex.Message);
+                return BadRequest(ex.Message);
             }
-
-            _context.Products.Remove(product);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            
         }
 
         private bool ProductExists(int id)
