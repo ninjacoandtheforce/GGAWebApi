@@ -123,7 +123,6 @@ namespace GGAWebApi.Controllers
                 // get loggedIn User
                 var user = await _graphServiceClient.Me.Request().GetAsync();
                 var username = user.UserPrincipalName;
-                //var username = "jaco@acoh.org.za";
 
                 //upload ProductImage
                 if (product.ProductImage.Length > 0)
