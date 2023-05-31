@@ -11,6 +11,7 @@ using System.Net;
 using Microsoft.Graph;
 using Microsoft.Identity.Web.Resource;
 using Microsoft.AspNetCore.Authorization;
+using File = Microsoft.Graph.File;
 
 namespace GGAWebApi.Controllers
 {
@@ -126,10 +127,8 @@ namespace GGAWebApi.Controllers
                     {
                         return NotFound();
                     }
-                    else
-                    {
-                        throw;
-                    }
+
+                    throw;
                 }
 
                 return NoContent();
@@ -200,6 +199,13 @@ namespace GGAWebApi.Controllers
                 _context.Products.Remove(product);
                 await _context.SaveChangesAsync();
 
+                //remove image
+                var path = _webHostEnvironment.WebRootPath + "\\uploads\\" + product.ProductUrl;
+                if (System.IO.File.Exists(path))
+                {
+                    System.IO.File.Delete(path);
+                }
+
                 return NoContent();
             }
             catch (Exception ex)
@@ -214,5 +220,7 @@ namespace GGAWebApi.Controllers
         {
             return (_context.Products?.Any(e => e.Id == id)).GetValueOrDefault();
         }
+
+        
     }
 }
